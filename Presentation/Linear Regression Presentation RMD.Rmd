@@ -1,0 +1,173 @@
+---
+title: "Linear Regression"
+author: "Diego Correa"
+date: "10/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(MASS)
+library(caret)
+library(corrplot)
+library(caTools)
+library(elasticnet)
+```
+
+
+```{r}
+data(Boston)
+dataset <- Boston
+```
+
+
+We can see that tax and radon have a pairwise correlation of 0.91
+```{r}
+corrMatrix <- round(cor(dataset),4)
+
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+
+```
+
+```{r}
+long <- dataset %>%
+  gather(key = 'variable', value = 'value')
+
+ggplot(long) +
+  geom_histogram(aes(x = value) , fill = 'dark blue') +
+  facet_wrap(. ~variable, scales = 'free', ncol =  3)
+```
+Transformation
+
+
+```{r}
+trans <- preProcess(dataset,
+    method = c('BoxCox', 'center', 'scale'))
+
+transformed = predict(trans, dataset)
+```
+
+
+Splitting data into train and test data sets with a 75/25 split.
+
+Also, creating dataframes for the X and y variables.
+
+
+```{r}
+sample = sample.split(transformed$medv, SplitRatio = 0.75)
+train = subset(transformed, sample == TRUE)
+test = subset(transformed, sample == FALSE)
+
+train_y <- train$medv
+test_y <- test$medv
+
+train_X <- train[,-14]
+test_X <- test[,-14]
+```
+
+OLS
+
+
+```{r}
+lmFitAllPredictors <- lm(medv ~ ., data = train)
+summary(lmFitAllPredictors)
+```
+
+
+Predicting the test data set using the OLS model.
+
+```{r}
+lmPred1 <- predict(lmFitAllPredictors, test_X)
+
+lmValues1 <- data.frame(obs = test_y, pred = lmPred1)
+defaultSummary(lmValues1)
+```
+
+Using the Robust Linear Regression model with Huber process and cross validation approach.
+
+
+```{r}
+rlmFitAllPredictors <- rlm(medv ~., data = train)
+
+ctrl <- trainControl(method = 'cv', number = 6)
+
+set.seed(123)
+lmFit1 <- train(x = train_X, y = train_y,
+                method = 'lm', trControl = ctrl) 
+
+lmFit1
+```
+Plotting the Predicted vs Observed values and residuals of the model.
+
+```{r}
+xyplot(train_y ~ predict(lmFit1),
+      type = c("p", "g"), xlab = "Predicted", 
+      ylab = "Observed") 
+
+xyplot(resid(lmFit1) ~ predict(lmFit1),
+ type = c("p", "g"),
+ xlab = "Predicted", ylab = "Residuals")
+```
+Look at the highly correlated variables after transformation.  Here, none of the variables are highly correlated after transformation.
+
+
+```{r}
+corThresh <- .9
+tooHigh <- findCorrelation(cor(train_X), corThresh)
+tooHigh
+```
+Robust linear regression with PCA 
+
+```{r}
+set.seed(321)
+rlmPCA <- train(train_X, train_y,
+                method = 'rlm',
+                preProcess = 'pca',
+                trControl = ctrl)
+plot(rlmPCA)
+rlmPCA
+```
+
+
+```{r}
+plsFit <- train(train_X, train_y,
+            method = 'pls',
+            tuneLength = 10,
+            trControl = ctrl)
+
+plot(plsFit)
+plsFit
+```
+Ridge Regression using the train function.  A ridge grid needs to be created to tune over the penalty.
+
+```{r}
+ridgeGrid <- data.frame(.lambda = seq(0,.1, length=15))
+
+set.seed(312)
+ridgeRegFit <- train(train_X, train_y,
+                     method = 'ridge',
+                     tuneGrid = ridgeGrid,
+                     trControl = ctrl)
+
+plot(ridgeRegFit)
+ridgeRegFit
+```
+
+Lasso model using the train function.  Likewise, a grid needs to be created to tune over penalty.
+
+```{r}
+enetGrid <- expand.grid(.lambda = c(0,0.01,0.1),
+            .fraction = seq(0.05,1,length = 20))
+
+set.seed(213)
+enetTune <- train(train_X, train_y,
+                  method = 'enet',
+                  tuneGrid = enetGrid,
+                  trControl = ctrl)
+
+plot(enetTune)
+enetTune
+```
+
+
