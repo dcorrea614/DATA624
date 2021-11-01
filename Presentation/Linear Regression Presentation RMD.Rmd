@@ -2,7 +2,10 @@
 title: "Linear Regression"
 author: "Diego Correa"
 date: "10/25/2021"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
 ---
 
 ```{r setup, include=FALSE}
@@ -15,6 +18,7 @@ library(caTools)
 library(elasticnet)
 ```
 
+# Exploration
 
 ```{r}
 data(Boston)
@@ -22,7 +26,8 @@ dataset <- Boston
 ```
 
 
-We can see that tax and radon have a pairwise correlation of 0.91
+We can see that tax and radon have a pairwise correlation of 0.91.
+
 ```{r}
 corrMatrix <- round(cor(dataset),4)
 
@@ -40,14 +45,13 @@ ggplot(long) +
 ```
 Transformation
 
-
 ```{r}
 trans <- preProcess(dataset,
     method = c('BoxCox', 'center', 'scale'))
 
 transformed = predict(trans, dataset)
 ```
-
+# Splitting
 
 Splitting data into train and test data sets with a 75/25 split.
 
@@ -65,9 +69,7 @@ test_y <- test$medv
 train_X <- train[,-14]
 test_X <- test[,-14]
 ```
-
-OLS
-
+# OLS
 
 ```{r}
 lmFitAllPredictors <- lm(medv ~ ., data = train)
@@ -129,6 +131,8 @@ rlmPCA <- train(train_X, train_y,
 plot(rlmPCA)
 rlmPCA
 ```
+# PLS
+
 Partial Least Squares model using the train function.
 
 ```{r}
@@ -140,6 +144,8 @@ plsFit <- train(train_X, train_y,
 plot(plsFit)
 plsFit
 ```
+# Ridge Regression
+
 Ridge Regression using the train function.  A ridge grid needs to be created to tune over the penalty.
 
 ```{r}
@@ -154,6 +160,7 @@ ridgeRegFit <- train(train_X, train_y,
 plot(ridgeRegFit)
 ridgeRegFit
 ```
+# Lasso Regression
 
 Lasso model using the train function.  Likewise, a grid needs to be created to tune over penalty.
 
