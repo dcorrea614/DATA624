@@ -94,7 +94,8 @@ ctrl <- trainControl(method = 'cv', number = 6)
 
 set.seed(123)
 lmFit1 <- train(x = train_X, y = train_y,
-                method = 'lm', trControl = ctrl) 
+                method = 'lm', 
+                trControl = ctrl) 
 
 lmFit1
 ```
@@ -117,7 +118,7 @@ corThresh <- .9
 tooHigh <- findCorrelation(cor(train_X), corThresh)
 tooHigh
 ```
-Robust linear regression with PCA 
+Robust linear regression with PCA using the train function.
 
 ```{r}
 set.seed(321)
@@ -128,7 +129,7 @@ rlmPCA <- train(train_X, train_y,
 plot(rlmPCA)
 rlmPCA
 ```
-
+Partial Least Squares model using the train function.
 
 ```{r}
 plsFit <- train(train_X, train_y,
