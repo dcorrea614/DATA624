@@ -90,8 +90,6 @@ Using the Robust Linear Regression model with Huber process and cross validation
 
 
 ```{r}
-rlmFitAllPredictors <- rlm(medv ~., data = train)
-
 ctrl <- trainControl(method = 'cv', number = 6)
 
 set.seed(123)
@@ -114,7 +112,7 @@ xyplot(resid(lmFit1) ~ predict(lmFit1),
 ```
 
 
-Looking at the highly correlated variables after transformation.  Here, none of the variables are highly correlated after transformation.
+We want to identify the highly correlated variables after transformation.  Here, none of the variables are highly correlated after transformation.
 
 
 ```{r}
@@ -162,7 +160,7 @@ ridgeRegFit <- train(train_X, train_y,
 plot(ridgeRegFit)
 ridgeRegFit
 ```
-# Lasso Regression
+# Elastic Net
 
 Lasso model using the train function.  Likewise, a grid needs to be created to tune over penalty.
 
