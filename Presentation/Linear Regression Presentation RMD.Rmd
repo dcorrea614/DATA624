@@ -96,7 +96,7 @@ ctrl <- trainControl(method = 'cv', number = 6)
 
 set.seed(123)
 lmFit1 <- train(x = train_X, y = train_y,
-                method = 'lm', 
+                method = 'rlm', 
                 trControl = ctrl) 
 
 lmFit1
@@ -112,7 +112,9 @@ xyplot(resid(lmFit1) ~ predict(lmFit1),
  type = c("p", "g"),
  xlab = "Predicted", ylab = "Residuals")
 ```
-Look at the highly correlated variables after transformation.  Here, none of the variables are highly correlated after transformation.
+
+
+Looking at the highly correlated variables after transformation.  Here, none of the variables are highly correlated after transformation.
 
 
 ```{r}
@@ -177,5 +179,3 @@ enetTune <- train(train_X, train_y,
 plot(enetTune)
 enetTune
 ```
-
-
