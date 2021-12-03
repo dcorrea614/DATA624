@@ -1,0 +1,282 @@
+---
+title: "DATA624 - Project 2"
+author: "Diego Correa & Lisa"
+date: e
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true"December 02, 2021"
+always_allow_html: yes
+output:
+  html_document:
+    df_print: kabl
+    toc_float:
+      collapsed: true
+    toc_depth: 5
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(psych)
+library(caret)
+library(mice)
+library(randomForest)
+library(caTools)
+library(corrplot)
+library(class)
+library(rpart)
+library(AppliedPredictiveModeling)
+library(naniar)
+library(xgboost)
+library(DiagrammeR)
+library(readxl)
+```
+
+## Background
+
+### Data Dictionary
+
+### Problem Statement
+
+
+## Dataset
+
+```{r warning=FALSE, message=FALSE}
+df <- read_xlsx('StudentData.xlsx')
+head(df)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
+```
+
+### Descriptive Dataset Summary
+
+```{r warning=FALSE, message=FALSE}
+summary(df)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+## Pre-Processing
+
+### Missing Value Analysis
+
+Based on the above descriptive data summary, there are quite a few variables with missing values. So we conducted an analysis of all missing values in various attributes to identify proper imputation technique.
+
+```{r fig.height=4, message=FALSE, warning=FALSE}
+## Counts of missing data per feature
+dataset_missing_counts <- data.frame(apply(df, 2, function(x) length(which(is.na(x)))))
+dataset_missing_pct <- data.frame(apply(df, 2,function(x) {sum(is.na(x)) / length(x) * 100}))
+
+dataset_missing_counts <- cbind(Feature = rownames(dataset_missing_counts), dataset_missing_counts, dataset_missing_pct)
+colnames(dataset_missing_counts) <- c('Feature','NA_Count','NA_Percentage')
+rownames(dataset_missing_counts) <- NULL
+
+dataset_missing_counts <- dataset_missing_counts %>% filter(`NA_Count` != 0) %>% arrange(desc(`NA_Count`))
+
+dataset_missing_counts  %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  geom_label(aes(label = NA_Count)) +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+
+### Data Imputation
+
+Before performing the imputation, we need to change the categorical variable into a factor and clean up whitespaces from column names.
+
+```{r}
+# removing Initial, ADHD Total and MD Total columns
+df <- df %>%
+  mutate(`Brand Code` = as.factor(`Brand Code`))
+
+# cleaning up the column names for the imputation function
+colNamesNoSpace <- colnames(df) %>%
+  str_remove_all(' ')
+
+colnames(df) <- colNamesNoSpace
+```
+
+Once done, we can perform the imputation using the *random forest* method of the *mice* package
+
+```{r message=FALSE, warning=FALSE}
+#imputation by using the random forest method ('rf')
+init <- mice(df, maxit = 0)
+predM <- init$predictorMatrix
+set.seed(123)
+imputed <- mice(df, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+df <- complete(imputed, silent = TRUE)
+summary(df)
+```
+
+
+### Degenerate Variables
+
+We also checked for presence of any de-generate variables.  Here, we  see that 
+
+```{r}
+# capturing the degenerate variables
+degenCols <- nearZeroVar(df)
+
+# identifying them 
+colnames(df[,degenCols])
+
+# removing from the dataset
+df <- df[,-degenCols]
+```
+## Exploratory Analysis
+
+
+### Distribution
+
+```{r}
+# make dataset long to place distribution in a facetwrap
+vars <- df %>%
+  select(-BrandCode) %>%
+  gather(key = 'variables', value = 'value') 
+
+# Distribution
+vars %>%
+  ggplot() +
+  geom_histogram(aes(x = value, y = ..density..), bins = 15) +
+  labs(title = 'Distributions of Variables') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(. ~variables, scales = 'free', ncol = 3)
+```
+
+### Correlation Plot: Multicollinearity Check
+
+
+```{r fig.height=6, fig.width=7, message=FALSE, warning=FALSE}
+corrMatrix <- round(cor(df[,-1]),4)
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+```
+
+## Model Building
+
+### Overview
+
+
+
+
+### Splitting Data: Train/Test
+
+```{r}
+sample = sample.split(df$PH, SplitRatio = 0.75)
+train = subset(df, sample == TRUE)
+test = subset(df, sample == FALSE)
+
+y_train <- as.factor(train$PH)
+y_test <- as.factor(test$PH)
+
+X_train <- train %>% select(-'PH')
+X_test <- test %>% select(-'PH')
+```
+
+### Linear Regression - Elastic Net
+
+
+```{r}
+enetGrid <- expand.grid(.lambda = c(0,0.01,0.1),
+            .fraction = seq(0.05,1,length = 20))
+
+set.seed(213)
+enetTune <- train(X_train, y_train,
+                  method = 'enet',
+                  preProc = c('center','scale'),
+                  tuneGrid = enetGrid
+                  )
+varImp(enetTune)
+```
+
+```{r}
+enetTune
+enetTune <- predict(enetTune, newdata = X_test)
+postResample(pred = enetTune, obs = y_test)
+```
+
+#### Model Summary
+
+```{r}
+
+```
+
+### Non Linear Regression - Neural Network
+
+```{r}
+# neural network
+nnetGrid <- expand.grid(.decay = c(0,0.01,.1),
+                        .size = c(1:5),
+                        .bag = FALSE)
+nnetFit <- train(X_train, y_train,
+                  method = 'avNNet',
+                  preProc = c('center','scale'),
+                  tuneGrid = nnetGrid,
+                  linout = TRUE,
+                  trace = FALSE,
+                  MaxNWts = 5 * (ncol(X_train) + 1 + 5 + 1),
+                  maxit = 100
+  
+)
+varImp(nnetFit)
+```
+
+```{r}
+nnetFit
+nnetFit <- predict(nnetFit, newdata = X_test)
+postResample(pred = nnetFit, obs = y_test)
+```
+
+#### Model Summary
+
+```{r}
+
+```
+
+### Trees and Boosting
+
+```{r}
+rfmodel <- train(X_train, y_train,
+                 method = 'rf',
+                 preProc = c('center','scale'),
+                 trControl = trainControl(method = 'cv'))
+
+rfVarImp <- varImp(rfmodel)
+```
+
+```{r}
+rfmodel
+rfmodel <- predict(rfmodel, newdata = X_test)
+postResample(pred = rfmodel, obs = y_test)
+```
+
+### Model Summary
+
+```{r}
+
+```
+
+### Conclusion
+
+```{r}
+
+```
+
+
+
+
+
