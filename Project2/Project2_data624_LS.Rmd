@@ -1,0 +1,652 @@
+---
+title: "DATA624 - Project 2"
+author: "Diego Correa & Lisa"
+date: e
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true"December 02, 2021"
+always_allow_html: yes
+output:
+  html_document:
+    df_print: kabl
+    toc_float:
+      collapsed: true
+    toc_depth: 5
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+    toc_depth: 5
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(kableExtra)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(psych)
+library(caret)
+library(mice)
+library(randomForest)
+library(caTools)
+library(corrplot)
+library(class)
+library(rpart)
+library(AppliedPredictiveModeling)
+library(naniar)
+library(xgboost)
+library(DiagrammeR)
+library(readxl)
+library(DataExplorer)
+library(elasticnet)
+library(glmnet)
+library(caTools)
+```
+
+## Background
+
+### Data Dictionary
+
+### Problem Statement
+
+
+## Dataset
+
+```{r warning=FALSE, message=FALSE}
+df <- read_xlsx('C:/Users/Lisa/OneDrive/CUNY/624/Project 2/StudentData.xlsx')
+head(df)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
+  scroll_box(width="100%",height="300px")
+
+str(df)
+```
+
+### Descriptive Dataset Summary
+
+```{r warning=FALSE, message=FALSE}
+summary(df)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+## Pre-Processing
+
+### Missing Value Analysis
+
+Based on the above descriptive data summary, there are quite a few variables with missing values. So we conducted an analysis of all missing values in various attributes to identify proper imputation technique.
+
+```{r fig.height=4, message=FALSE, warning=FALSE}
+## Counts of missing data per feature
+dataset_missing_counts <- data.frame(apply(df, 2, function(x) length(which(is.na(x)))))
+dataset_missing_pct <- data.frame(apply(df, 2,function(x) {sum(is.na(x)) / length(x) * 100}))
+
+dataset_missing_counts <- cbind(Feature = rownames(dataset_missing_counts), dataset_missing_counts, dataset_missing_pct)
+colnames(dataset_missing_counts) <- c('Feature','NA_Count','NA_Percentage')
+rownames(dataset_missing_counts) <- NULL
+
+dataset_missing_counts <- dataset_missing_counts %>% filter(`NA_Count` != 0) %>% arrange(desc(`NA_Count`))
+
+dataset_missing_counts  %>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="300px")
+
+ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))) + 
+  geom_bar(stat = 'identity', fill = 'steelblue') +
+  geom_label(aes(label = NA_Count)) +
+  labs(title = 'Missing Counts') +
+  theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+
+### Data Imputation
+
+Before performing the imputation, we need to change the categorical variable into a factor and clean up whitespaces from column names.
+
+```{r}
+# manipulation
+df1 <- df %>%
+  mutate(`Brand Code` = as.factor(`Brand Code`))
+
+# cleaning up the column names for the imputation function
+colNamesNoSpace <- colnames(df1) %>%
+  str_remove_all(' ')
+
+colnames(df1) <- colNamesNoSpace
+```
+### Degenerate Variables
+
+We also checked for presence of any de-generate variables.  Here, we  see that 
+```{r}
+# near zero variance
+# capturing the degenerate variables
+dim(df1)
+nzv <- nearZeroVar(df1)
+colnames(df1[,nzv])
+
+
+# identifying them 
+remove<-colnames(df1)[nzv]
+
+
+remove
+
+# removing from the dataset
+
+df2 <- df1 %>%  select(-'HydPressure1')
+dim(df2)
+
+countNA<-colSums(is.na(df2))
+
+countNA
+
+#remove missing brand =>df3
+
+df3 <- df2[!is.na(df2$BrandCode), ]
+dim(df3)
+
+
+
+histogram(df3$MFR)
+plot(df3$MFR,df3$PH)
+
+
+table(df3$BrandCode)
+boxplot(df3$PH~df3$BrandCode , main="PH by Brand",ylab="PH",  xlab="",las=2)
+
+boxplot(df3$MFR~df3$BrandCode , main="MFR by Brand",ylab="MRF",  xlab="",las=2)
+
+dim(df3)
+
+```
+
+Once done, we can perform the imputation using the *random forest* method of the *mice* package
+
+```{r message=FALSE, warning=FALSE}
+#imputation by using the random forest method ('rf')
+init <- mice(df3, maxit = 0)
+predM <- init$predictorMatrix
+set.seed(123)
+imputed <- mice(df3, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+df3 <- complete(imputed, silent = TRUE)
+summary(df3)
+```
+
+
+
+
+## Exploratory Analysis
+
+
+### Distribution
+
+```{r}
+
+boxplot(df3$PH ~df3$BrandCode, main="PH by BrandCode", ylab="
+        ph", cex.axis=.5, xlab="",las=2) 
+
+# make dataset long to place distribution in a facetwrap
+vars <- df3 %>%
+  select(-BrandCode) %>%
+  gather(key = 'variables', value = 'value') 
+
+# Distribution
+vars %>%
+  ggplot() +
+  geom_histogram(aes(x = value, y = ..density..), bins = 15) +
+  labs(title = 'Distributions of Variables') +
+  theme(plot.title = element_text(hjust = .5)) +
+  facet_wrap(. ~variables, scales = 'free', ncol = 3)
+
+DataExplorer::plot_histogram(df3)
+
+#look at separately
+histogram(df3$CarbVolume)
+histogram(df3$FillOunces)
+histogram(df3$PCVolume)
+histogram(df3$CarbPressure)
+histogram(df3$CarbTemp)
+histogram(df3$PSC)
+histogram(df3$PSCFill)
+histogram(df3$PSCCO2)
+histogram(df3$MnfFlow)
+histogram(df3$CarbPressure1)
+histogram(df3$FillPressure)
+histogram(df3$HydPressure2)
+histogram(df3$HydPressure3)
+histogram(df3$HydPressure4)
+histogram(df3$FillerLevel)
+histogram(df3$FillerSpeed)
+histogram(df3$Temperature)
+histogram(df3$Usagecont)
+histogram(df3$CarbFlow)
+histogram(df3$Density)
+histogram(df3$MFR)
+histogram(df3$Balling)
+histogram(df3$PressureVacuum)
+histogram(df3$PH)
+histogram(df3$OxygenFiller)
+histogram(df3$BowlSetpoint)
+histogram(df3$PressureSetpoint)
+histogram(df3$AirPressurer)
+histogram(df3$AlchRel)
+histogram(df3$CarbRel)
+histogram(df3$BallingLvl)
+
+
+
+
+
+
+
+```
+### Correlation Plot: Multicollinearity Check
+
+
+```{r fig.height=6, fig.width=7, message=FALSE, warning=FALSE}
+corrMatrix <- round(cor(df3[,-1]),4)
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+```
+
+```{r}
+
+#remove highly correlated variables....
+
+findCorrelation(corrMatrix,
+  cutoff = 0.9,
+  verbose = FALSE,
+  names = TRUE,
+  exact = TRUE)
+
+#remove from dataset
+
+df4 <- subset(df3, select = -c(Balling, AlchRel,Density,HydPressure3,FillerLevel,FillerSpeed ))
+dim(df4)
+
+```
+
+## Model Building
+
+### Overview
+
+
+
+
+### Splitting Data: Train/Test
+
+```{r}
+set.seed(123)
+sample = sample.split(df4$PH, SplitRatio = 0.75)
+train = subset(df4, sample == TRUE)
+test = subset(df4, sample == FALSE)
+y_train <- train$PH
+y_test <- (test$PH)
+X_train <- train %>% select(-'PH')
+X_test <- test %>% select(-'PH')
+```
+### Non Linear Regression - Neural Network
+
+```{r}
+# neural network
+nnetGrid <- expand.grid(.decay = c(0,0.01,.1),
+                        .size = c(1:5),
+                        .bag = FALSE)
+nnetFit <- train(X_train, y_train,
+                  method = 'avNNet',
+                  preProc = c('center','scale'),
+                  tuneGrid = nnetGrid,
+                  linout = TRUE,
+                  trace = FALSE,
+                  MaxNWts = 5 * (ncol(X_train) + 1 + 5 + 1),
+                  maxit = 100
+  
+)
+nnetFit
+summary(nnetFit)
+
+```
+## DISCUSSION Neural Network: 
+Results:
+
+a 10-5-1 network with 61 weights
+
+Let’s look at variable importance…
+```{r}
+varImp(nnetFit)
+```
+Let’s look at new samples…..
+```{r}
+nnetpred <- predict(nnetFit, newdata = X_test)
+postResample(pred = nnetpred, obs = y_test)
+```
+The neural network RMSE =0.11452281,
+Rsquare= 0.54636835, 
+MAE= 0.08871147 on test data.
+
+### Trees and Boosting
+Random Forest model.....
+```{r}
+rfmodel <- train(X_train, y_train,
+                 method = 'rf',
+                 preProc = c('center','scale'),
+                 trControl = trainControl(method = 'cv'))
+rfmodel
+
+rfVarImp <- varImp(rfmodel)
+
+rfVarImp
+
+
+```
+Let’s look at new samples…..
+```{r}
+
+rfmodel <- predict(rfmodel, newdata = X_test)
+postResample(pred = rfmodel, obs = y_test)
+```
+The random Forest RMSE =0.08944819,
+Rsquare= 0.73302854, 
+MAE= 0.06709861 on test data.
+
+## Cubist
+```{r}
+#CUBIST
+set.seed(123)
+
+cubist_Model <- train(x = X_train, y = y_train, method = "cubist")
+
+cubist_Model
+```
+What are the important variables of the CUBIST model?
+
+```{r}
+varImp(cubist_Model)
+```
+Let’s look at new samples…
+```{r}
+cubist_Pred <- predict(cubist_Model, newdata = X_test)
+postResample(pred = cubist_Pred, obs = y_test)
+```
+Test Data..
+The cubist RMSE =0.09161601,
+Rsquare= 0.71007579, 
+MAE= 0.06955146.
+
+
+
+
+### Linear Regression - Elastic Net
+
+Model separately for BrandCode A, B, C, D:
+
+```{r}
+table(df4$BrandCode)
+df4_A<-df4 %>% filter(BrandCode=='A')
+df4_B<-df4 %>% filter(BrandCode=='B')
+df4_C<-df4 %>% filter(BrandCode=='C')
+df4_D<-df4 %>% filter(BrandCode=='D')
+
+df4_A<-df4_A %>% select(-'BrandCode')
+dim(df4_A)
+df4_B<-df4_B %>% select(-'BrandCode')
+dim(df4_B)
+df4_C<-df4_C %>% select(-'BrandCode')
+dim(df4_C)
+df4_D<-df4_D %>% select(-'BrandCode')
+dim(df4_D)
+
+
+```
+ELASTIC NET MODEL FOR BRAND A.
+
+Split dataset to test and train.
+```{r}
+set.seed(123)
+sample_A = sample.split(df4_A$PH, SplitRatio = 0.75)
+train_A = subset(df4_A, sample_A == TRUE)
+test_A = subset(df4_A, sample_A == FALSE)
+y_train_A <- train_A$PH
+y_test_A <- (test_A$PH)
+X_train_A <- train_A %>% select(-'PH')
+X_test_A <- test_A %>% select(-'PH')
+
+```
+
+
+
+
+```{r}
+#Diego
+
+enetGrid_A <- expand.grid(.lambda = c(0,0.01,0.1),
+            .fraction = seq(0.05,1,length = 20))
+
+set.seed(213)
+enetTune_A <- train(X_train_A, y_train_A,
+                  method = 'enet',
+                  preProc = c('center','scale'),
+                  tuneGrid = enetGrid_A
+                  )
+
+varImp(enetTune_A)
+```
+
+
+Let’s look at new samples…
+
+```{r}
+enetTune_A
+enetTune_A <- predict(enetTune_A, newdata = X_test_A)
+postResample(pred = enetTune_A, obs = y_test_A)
+```
+Elasticnet test data BRAND A:
+RMSE  Rsquared       MAE 
+0.1265580 0.3520891 0.1035240 
+
+
+ELASTIC NET MODEL FOR BRAND B.
+
+Split dataset to test and train.
+```{r}
+set.seed(123)
+sample_B = sample.split(df4_B$PH, SplitRatio = 0.75)
+train_B = subset(df4_B, sample_B == TRUE)
+test_B = subset(df4_B, sample_B == FALSE)
+y_train_B <- train_B$PH
+y_test_B <- (test_B$PH)
+X_train_B <- train_B %>% select(-'PH')
+X_test_B <- test_B %>% select(-'PH')
+
+```
+
+
+
+
+```{r}
+#Diego
+
+enetGrid_B <- expand.grid(.lambda = c(0,0.01,0.1),
+            .fraction = seq(0.05,1,length = 20))
+
+set.seed(213)
+enetTune_B <- train(X_train_B, y_train_B,
+                  method = 'enet',
+                  preProc = c('center','scale'),
+                  tuneGrid = enetGrid_B
+                  )
+
+
+varImp(enetTune_B)
+```
+Let’s look at new samples…
+
+```{r}
+enetTune_B
+enetTune_B <- predict(enetTune_B, newdata = X_test_B)
+postResample(pred = enetTune_B, obs = y_test_B)
+```
+Elasticnet test data BRAND B:
+RMSE   Rsquared        MAE 
+0.12168998 0.47252764 0.09349907 
+
+
+ELASTIC NET MODEL FOR BRAND C.
+
+Split dataset to test and train.
+```{r}
+set.seed(123)
+sample_C = sample.split(df4_C$PH, SplitRatio = 0.75)
+train_C = subset(df4_C, sample_C == TRUE)
+test_C = subset(df4_C, sample_C == FALSE)
+y_train_C <- train_C$PH
+y_test_C <- (test_C$PH)
+X_train_C <- train_C %>% select(-'PH')
+X_test_C <- test_C %>% select(-'PH')
+
+```
+
+
+
+
+```{r}
+#Diego
+
+enetGrid_C <- expand.grid(.lambda = c(0,0.01,0.1),
+            .fraction = seq(0.05,1,length = 20))
+
+set.seed(213)
+enetTune_C <- train(X_train_C, y_train_C,
+                  method = 'enet',
+                  preProc = c('center','scale'),
+                  tuneGrid = enetGrid_C
+                  )
+
+
+varImp(enetTune_C)
+```
+Let’s look at new samples…
+
+```{r}
+enetTune_C
+enetTune_C <- predict(enetTune_C, newdata = X_test_C)
+postResample(pred = enetTune_C, obs = y_test_C)
+```
+Elasticnet test data BRAND C:
+RMSE   Rsquared        MAE 
+0.15174296 0.05161908 0.12372653 
+
+
+ELASTIC NET MODEL FOR BRAND D.
+
+Split dataset to test and train.
+```{r}
+set.seed(123)
+sample_D = sample.split(df4_D$PH, SplitRatio = 0.75)
+train_D = subset(df4_D, sample_D == TRUE)
+test_D = subset(df4_D, sample_D == FALSE)
+y_train_D<- train_D$PH
+y_test_D <- (test_D$PH)
+X_train_D <- train_D %>% select(-'PH')
+X_test_D <- test_D %>% select(-'PH')
+
+```
+
+
+
+
+```{r}
+#Diego
+
+enetGrid_D <- expand.grid(.lambda = c(0,0.01,0.1),
+            .fraction = seq(0.05,1,length = 20))
+
+set.seed(213)
+enetTune_D <- train(X_train_D, y_train_D,
+                  method = 'enet',
+                  preProc = c('center','scale'),
+                  tuneGrid = enetGrid_D
+                  )
+
+
+varImp(enetTune_D)
+```
+Let’s look at new samples…
+
+```{r}
+enetTune_D
+enetTune_D <- predict(enetTune_D, newdata = X_test_D)
+postResample(pred = enetTune_D, obs = y_test_D)
+```
+Elasticnet test data BRAND C:
+RMSE          Rsquared        MAE 
+0.11667486 0.17413303 0.09437218 
+
+ELASTIC NET WITH DUMMY VARIABLES
+```{r}
+sample_E <- sample.split(df4$PH, SplitRatio = 0.75)
+train_E <- subset(df4, sample_E == TRUE)
+train_E <- model.matrix( ~ .-1, train_E)
+
+test_E <- subset(df4, sample_E == FALSE)
+test_E <- model.matrix( ~ .-1, test_E)
+
+y_train_E <- train_E[,'PH']
+y_test_E <- test_E[,'PH']
+
+X_train_E <- train_E[, !(colnames(train) == 'PH')]
+X_test_E <- test_E[, !!(colnames(test) == 'PH')]
+```
+
+### Linear Regression - Elastic Net
+
+
+```{r}
+enetGrid_E <- expand.grid(.lambda = c(0,0.01,0.1),
+            .fraction = seq(0.05,1,length = 20))
+
+set.seed(213)
+enetTune_E <- train(X_train_E, y_train_E,
+                  method = 'enet',
+                  preProc = c('center','scale'),
+                  tuneGrid = enetGrid_E
+                  )
+varImp(enetTune_E)
+```
+
+```
+
+
+
+#### Model Summary
+
+
+```{r}
+
+```
+
+
+
+### Model Summary
+
+```{r}
+
+```
+
+
+#### Model Summary
+
+```{r}
+
+```
+
+
+### Conclusion
+
+```{r}
+
+```
+
+
+
