@@ -190,16 +190,16 @@ Once done, we can perform the imputation using the *random forest* method of the
 
 ```{r message=FALSE, warning=FALSE}
 #imputation by using the random forest method ('rf')
-init <- mice(df3, maxit = 0)
+init <- mice(df4, maxit = 0)
 predM <- init$predictorMatrix
 set.seed(123)
-imputed <- mice(df3, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
+imputed <- mice(df4, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
 ```
 
 
 ```{r message=FALSE, warning=FALSE}
-df3 <- complete(imputed, silent = TRUE)
-summary(df3)
+df4 <- complete(imputed, silent = TRUE)
+summary(df4)
 ```
 
 
@@ -271,6 +271,7 @@ histogram(df4$BallingLvl)
 
 ```{r fig.height=6, fig.width=7, message=FALSE, warning=FALSE}
 corrMatrix <- round(cor(df4[,-1]),4)
+
 corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
 ```
 
