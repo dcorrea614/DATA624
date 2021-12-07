@@ -1,15 +1,15 @@
 ---
 title: "DATA624 - Project 2"
 author: "Diego Correa & Lisa"
-date: e
-    theme: cerulean
-    highlight: pygments
-    css: ./lab.css
-    toc: true"December 02, 2021"
+date: "December 02, 2021"
 always_allow_html: yes
 output:
   html_document:
-    df_print: kabl
+    df_print: kable
+    theme: cerulean
+    highlight: pygments
+    css: ./lab.css
+    toc: true
     toc_float:
       collapsed: true
     toc_depth: 5
