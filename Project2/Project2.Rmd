@@ -42,10 +42,10 @@ library(naniar)
 library(xgboost)
 library(DiagrammeR)
 library(readxl)
+library(writexl)
 library(DataExplorer)
 library(elasticnet)
 library(glmnet)
-library(caTools)
 library(rattle)
 ```
 
@@ -59,11 +59,9 @@ library(rattle)
 ## Dataset
 
 ```{r warning=FALSE, message=FALSE}
-df <- read_xlsx('C:\\Users\\dcorr\\Dropbox\\MSDS\\DATA624\\Project2\\StudentData.xlsx')
+df <- read_xlsx('StudentData.xlsx')
 head(df)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% 
   scroll_box(width="100%",height="300px")
-
-str(df)
 ```
 
 ### Descriptive Dataset Summary
@@ -73,6 +71,42 @@ summary(df)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover
 ```
 
 ## Pre-Processing
+
+
+
+
+Before performing the imputation, we need to change the categorical variable into a factor and clean up whitespaces from column names.
+
+```{r}
+# transforming the Brand Code variable into a factor for imputation
+df <- df %>%
+  mutate(`Brand Code` = as.factor(`Brand Code`))
+
+# cleaning up the column names for the imputation function
+colNamesNoSpace <- colnames(df) %>%
+  str_remove_all(' ')
+
+# transforming the column names
+colnames(df) <- colNamesNoSpace
+```
+
+### Degenerate Variables
+
+We also checked for presence of any de-generate variables.  Here, we see that there is one degenerate variable, *HydPressure1*.
+
+```{r}
+# near zero variance
+# capturing the degenerate variables
+dim(df)
+nzv <- nearZeroVar(df)
+
+# identifying them 
+(remove<-colnames(df)[nzv])
+
+# removing from the dataset
+df <- df[,!(colnames(df) == remove)]
+dim(df)
+```
 
 ### Missing Value Analysis
 
@@ -98,64 +132,14 @@ ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))
   theme(plot.title = element_text(hjust = 0.5), axis.title.y = element_blank(), axis.title.x = element_blank())
 ```
 
-
-Before performing the imputation, we need to change the categorical variable into a factor and clean up whitespaces from column names.
-
-```{r}
-# manipulation
-df1 <- df %>%
-  mutate(`Brand Code` = as.factor(`Brand Code`))
-
-# cleaning up the column names for the imputation function
-colNamesNoSpace <- colnames(df1) %>%
-  str_remove_all(' ')
-
-colnames(df1) <- colNamesNoSpace
-```
-
-### Degenerate Variables
-
-We also checked for presence of any de-generate variables.  Here, we see that there is one degenerate variable.
-
-```{r}
-# near zero variance
-# capturing the degenerate variables
-dim(df1)
-nzv <- nearZeroVar(df1)
-
-# identifying them 
-(remove<-colnames(df1)[nzv])
-
-# removing from the dataset
-
-df2 <- df1[,!(colnames(df1) == remove)]
-dim(df2)
-```
-
-
 ### Removing Rows with Missing Brand Code
 
+To avoid risk of imputing the incorrect Brand Code, we remove the *NA* rows, a total 120 rows.
 
 ```{r}
-(countNA<-colSums(is.na(df2)))
-
-#remove missing brand =>df3
-df3 <- df2[!is.na(df2$BrandCode), ]
-dim(df3)
-
-# DC - not sure if we want to include graphs in this section?
-
-histogram(df3$MFR)
-plot(df3$MFR,df3$PH)
-
-
-table(df3$BrandCode)
-boxplot(df3$PH~df3$BrandCode , main="PH by Brand",ylab="PH",  xlab="",las=2)
-
-boxplot(df3$MFR~df3$BrandCode , main="MFR by Brand",ylab="MRF",  xlab="",las=2)
-
-dim(df3)
-
+#remove missing brand => df3
+df <- df[!is.na(df$BrandCode), ]
+dim(df)
 ```
 
 
@@ -165,7 +149,7 @@ None appear to be highly correlated
 
 ```{r warning=FALSE}
 # remove highly correlated variables
-corrMatrix <- round(cor(df3[,-1]),4)
+corrMatrix <- round(cor(df[,-1]),4)
 
 highCorr <- findCorrelation(corrMatrix,
   cutoff = 0.9,
@@ -175,12 +159,7 @@ highCorr <- findCorrelation(corrMatrix,
 
 # identify
 highCorr %>% 
-  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
-
-
-# remove from dataset
-df4 <- df3
-dim(df4)
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="200px")
 ```
 
 ### Data Imputation
@@ -190,16 +169,16 @@ Once done, we can perform the imputation using the *random forest* method of the
 
 ```{r message=FALSE, warning=FALSE}
 #imputation by using the random forest method ('rf')
-init <- mice(df4, maxit = 0)
+init <- mice(df, maxit = 0)
 predM <- init$predictorMatrix
 set.seed(123)
-imputed <- mice(df4, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
+imputed <- mice(df, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
 ```
 
 
 ```{r message=FALSE, warning=FALSE}
-df4 <- complete(imputed, silent = TRUE)
-summary(df4)
+df <- complete(imputed, silent = TRUE)
+summary(df)
 ```
 
 
@@ -210,14 +189,13 @@ summary(df4)
 ### Distribution
 
 ```{r}
-# DC - i think we can remove this as we are adding a boxplt graph below
-boxplot(df4$PH ~df4$BrandCode, main="PH by BrandCode", ylab="
+# Categorical
+boxplot(df$PH ~df$BrandCode, main="PH by BrandCode", ylab="
         ph", cex.axis=.5, xlab="",las=2) 
 
-DataExplorer::plot_histogram(df3)
-
+# numerical
 # make dataset long to place data in boxplots
-vars <- df4 %>%
+vars <- df %>%
   select(-BrandCode) %>%
   gather(key = 'variables', value = 'value') 
 
@@ -225,63 +203,27 @@ vars <- df4 %>%
 vars %>%
   ggplot(aes(x = variables, y = value)) +
   geom_boxplot() +
-  labs(title = 'Distributions of Variables') +
+  labs(title = 'Boxplot of Numerical Variables') +
   theme(plot.title = element_text(hjust = 0.5)) +
   coord_flip()
 
-# DC - i don't think we need to look at separately if we are using the plot_histogram function, right?
-
-#look at separately
-histogram(df4$CarbVolume)
-histogram(df4$FillOunces)
-histogram(df4$PCVolume)
-histogram(df4$CarbPressure)
-histogram(df4$CarbTemp)
-histogram(df4$PSC)
-histogram(df4$PSCFill)
-histogram(df4$PSCCO2)
-histogram(df4$MnfFlow)
-histogram(df4$CarbPressure1)
-histogram(df4$FillPressure)
-histogram(df4$HydPressure2)
-histogram(df4$HydPressure3)
-histogram(df4$HydPressure4)
-histogram(df4$FillerLevel)
-histogram(df4$FillerSpeed)
-histogram(df4$Temperature)
-histogram(df4$Usagecont)
-histogram(df4$CarbFlow)
-histogram(df4$Density)
-histogram(df4$MFR)
-histogram(df4$Balling)
-histogram(df4$PressureVacuum)
-histogram(df4$PH)
-histogram(df4$OxygenFiller)
-histogram(df4$BowlSetpoint)
-histogram(df4$PressureSetpoint)
-histogram(df4$AirPressurer)
-histogram(df4$AlchRel)
-histogram(df4$CarbRel)
-histogram(df4$BallingLvl)
-
+# histogram of variables
+DataExplorer::plot_histogram(df)
 ```
 
 ### Correlation Plot: Multicollinearity Check
 
 
 ```{r fig.height=6, fig.width=7, message=FALSE, warning=FALSE}
-corrMatrix <- round(cor(df4[,-1]),4)
+corrMatrix <- round(cor(df[,-1]),4)
 
-corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.8, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
+corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgray", order="hclust", addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.0, cl.cex = 1.0, addCoef.col = "white", number.digits = 2, number.cex = 0.5, col = colorRampPalette(c("darkred","white","dodgerblue4"))(100))
 ```
-
 
 
 ## Model Building
 
 ### Overview
-
-
 
 
 ### Splitting Data: Train/Test
@@ -306,9 +248,9 @@ X_test <- test[, !(colnames(test) == 'PH')]
 
 ### Linear Regression 
 
-### Ordinary Least Square
+#### Ordinary Least Square
 
-```{r}
+```{r warning=FALSE}
 lmFit <- train(X_train, y_train,
                   method = 'lm',
                   preProc = c('center','scale'),
@@ -317,19 +259,37 @@ lmFit <- train(X_train, y_train,
 lmFit
 ```
 
+##### Residual Analysis
 
+```{r warning=FALSE}
+res <- resid(lmFit)
+predVal <- predict(lmFit)
+plot(y_train, res)
+abline(0,0)
+plot(y_train,predVal)
+```
+
+
+##### Variable Importance
 
 ```{r}
 varimp <- varImp(lmFit)
 
 varimp$importance %>%
+  arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
+##### Prediction Performance
 
-```{r}
+```{r warning=FALSE}
 lm_Pred <- predict(lmFit, newdata = X_test)
-postResample(pred = lm_Pred, obs = y_test)
+lmPredPerf <- postResample(pred = lm_Pred, obs = y_test)
+
+lmPredPerf['Family'] <- 'Linear'
+
+# saving model prediction performance
+modelPredPerf <- data.frame(rbind(lm = lmPredPerf))
 ```
 
 
@@ -337,9 +297,7 @@ postResample(pred = lm_Pred, obs = y_test)
 #### Elastic Net
 
 
-
 ```{r}
-#Diego
 enetGrid <- expand.grid(.lambda = c(0,0.01,0.1),
             .fraction = seq(0.05,1,length = 20))
 
@@ -353,21 +311,27 @@ enetTune <- train(X_train, y_train,
 enetTune
 ```
 
-
+##### Variable Importance
 
 ```{r}
 varimp <- varImp(enetTune)
 
 varimp$importance %>%
+  arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
 
-Let’s look at new samples…
+##### Prediction Performance
 
 ```{r}
-enetTune <- predict(enetTune, newdata = X_test)
-postResample(pred = enetTune, obs = y_test)
+enetPred <- predict(enetTune, newdata = X_test)
+enetPredPerf <- postResample(pred = enetPred, obs = y_test)
+
+enetPredPerf['Family'] <- 'Linear'
+
+# saving model prediction performance
+modelPredPerf <- rbind(modelPredPerf,elastic_net = enetPredPerf)
 ```
 
 
@@ -375,9 +339,47 @@ postResample(pred = enetTune, obs = y_test)
 
 ### Non Linear Regression 
 
-#### Neural Network
+#### Support Vector Machine
 
 ```{r}
+svmRTuned <- train(X_train, y_train,
+                 method = 'svmRadial',
+                 preProc = c('center','scale'),
+                 tuneLength = 14,
+                 trControl = trainControl(method = 'cv'))
+
+svmRTuned
+```
+
+##### Variable Importance
+
+```{r}
+varimp <- varImp(svmRTuned)
+
+varimp$importance %>%
+  arrange(desc(Overall)) %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+```
+
+
+##### Prediction Performace 
+
+```{r}
+svmRPred <- predict(svmRTuned, newdata = X_test)
+svmRPredPerf <- postResample(pred = svmRPred, obs = y_test)
+
+svmRPredPerf['Family'] <- 'NonLinear'
+
+# saving model prediction performance
+modelPredPerf <- rbind(modelPredPerf,svm_radial = svmRPredPerf)
+
+```
+
+
+
+#### Neural Network
+
+```{r warning=FALSE}
 # neural network
 nnetGrid <- expand.grid(.decay = c(0,0.01,.1),
                         .size = c(1:5),
@@ -396,35 +398,36 @@ nnetFit <- train(X_train, y_train,
 nnetFit
 ```
 
-#### DISCUSSION Neural Network: 
 
-Results:
-
-a 10-5-1 network with 61 weights
-
-Let’s look at variable importance…
+##### Variable Importance
 
 
 ```{r}
 varimp <- varImp(nnetFit)
 
 varimp$importance %>%
+  arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
 
-Let’s look at new samples…..
+##### Prediction Performance
+
 ```{r}
-set.seed(516)
-nnetpred <- predict(nnetFit, newdata = X_test)
-postResample(pred = nnetpred, obs = y_test)
+nnetPred <- predict(nnetFit, newdata = X_test)
+nnetPredPerf <- postResample(pred = nnetPred, obs = y_test)
+
+nnetPredPerf['Family'] <- 'NonLinear'
+
+# saving model prediction performance
+modelPredPerf <- rbind(modelPredPerf,neural_net = nnetPredPerf)
 ```
 
 The neural network RMSE =0.11452281,
 Rsquare= 0.54636835, 
 MAE= 0.08871147 on test data.
 
-### Trees and Boosting
+### Trees and Rules
 
 #### Random Forest
 
@@ -437,33 +440,38 @@ rfmodel <- train(X_train, y_train,
 rfmodel
 ```
 
-
+##### Variable Importance
 
 ```{r}
 varimp <- varImp(rfmodel)
 
 varimp$importance %>%
+  arrange(desc(Overall)) %>%
   kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
 
-Let’s look at new samples…..
+##### Prediction Performance
+
 
 
 ```{r}
-rfmodel <- predict(rfmodel, newdata = X_test)
-postResample(pred = rfmodel, obs = y_test)
+rfPred <- predict(rfmodel, newdata = X_test)
+rfPredPerf <- postResample(pred = rfPred, obs = y_test)
+
+
+rfPredPerf['Family'] <- 'TreesAndRules'
+
+# saving model prediction performance
+modelPredPerf <- rbind(modelPredPerf, rf = rfPredPerf)
 ```
-The random Forest RMSE =0.08944819,
-Rsquare= 0.73302854, 
-MAE= 0.06709861 on test data.
+
 
 
 #### Cubist
 
 
 ```{r}
-#CUBIST
 set.seed(123)
 
 cubist_Model <- train(x = X_train, y = y_train,
@@ -474,55 +482,105 @@ cubist_Model <- train(x = X_train, y = y_train,
 cubist_Model
 ```
 
-What are the important variables of the CUBIST model?
+##### Prediction Performance
 
 ```{r}
-varImp(cubist_Model)
+cubistPred <- predict(cubist_Model, newdata = X_test)
+cubistPredPerf <- postResample(pred = cubistPred, obs = y_test)
+
+
+cubistPredPerf['Family'] <- 'TreesAndRules'
+
+# saving model prediction performance
+modelPredPerf <- rbind(modelPredPerf,cubist = cubistPredPerf)
+```
+
+### Evaluation
+
+Comparing the *Rqaured*, *RSME*, and *MAE* metric of each model's prediction on the hold out data.  We will use the the model with the highest *Rsquared* value as this will explains the most about the variance of the predicted value.  
+
+Here, we see that the *Trees and Rules* models outperforms the *Non Linear* and *Linear* regression models.
+
+```{r}
+modelPredPerf %>%
+  mutate(RMSE = round(as.numeric(RMSE),3),
+         Rsquared = round(as.numeric(Rsquared),3),
+         MAE = round(as.numeric(MAE),3),) %>%
+  arrange(desc(Rsquared)) %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
 
-Let’s look at new samples…
+
+
+## Conclusion
+
+
+
+
+
+## Prediction
+
+Lastly, we will use our best performing model, Random Forest, on the evaluation dataset.  In order to use the mdoel, we need to perform the transformations that we used on our dataset.
 
 ```{r}
-cubist_Pred <- predict(cubist_Model, newdata = X_test)
-postResample(pred = cubist_Pred, obs = y_test)
-```
-Test Data..
-The cubist RMSE =0.09161601,
-Rsquare= 0.71007579, 
-MAE= 0.06955146.
+# reading the evaluation dataset
+eval_df <- read_xlsx('StudentEvaluation.xlsx')
 
+# change Brand Code into a factor
+eval_df <- eval_df %>%
+  mutate(`Brand Code` = as.factor(`Brand Code`)) 
 
+# remove white spaces in column names
+colNamesNoSpace <- colnames(eval_df) %>%
+  str_remove_all(' ')
 
+colnames(eval_df) <- colNamesNoSpace
 
+# remove degenerate variable
+eval_df <- eval_df[,!(colnames(eval_df) == remove)]
 
-#### Model Summary
-
-
-```{r}
-
-```
-
-
-
-### Model Summary
-
-```{r}
-
-```
-
-
-#### Model Summary
-
-```{r}
-
+# looking at NA values
+(countNA <- colSums(is.na(eval_df)))
 ```
 
 
-### Conclusion
+We can see that the dataset has missing values.  The generated *Random Forest* model needs values in each entry to make a prediction on the entry.  Thus, imputation is needed prior to making predictions.  We will use the same technique as before.
 
-```{r}
 
+```{r message=FALSE, warning=FALSE}
+#imputation by using the random forest method ('rf')
+init <- mice(eval_df, maxit = 0)
+predM <- init$predictorMatrix
+set.seed(123)
+imputed <- mice(eval_df, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
+eval_df <- complete(imputed, silent = TRUE)
 ```
 
 
+Next, we need to drop the *PH* in the evaluation dataset to transform it into a matrix model that includes dummy variables for the factor data type.
+
+```{r}
+# remove PH variable
+eval_df2 <- eval_df[,!(colnames(eval_df) == 'PH')]
+
+# create model matrix
+eval_modelmatrix <- model.matrix( ~ .-1, eval_df2)
+```
+
+Now the *Random Forest* model is ready to be used on the evaluation dataset.
+
+```{r}
+# Predicting on evaluation dataset
+rfPred <- predict(rfmodel, newdata = eval_modelmatrix)
+
+# Inputting the prediction values into dataset
+eval_df$PH <- rfPred
+```
+
+
+Finally, we can write the dataset set with our predictions into an excel spreadsheet.
+
+```{r}
+write_xlsx(eval_df, 'StudentEvaluation2.xlsx')
+```
