@@ -1,6 +1,6 @@
 ---
 title: "DATA624 - Project 2"
-author: "Diego Correa & Lisa"
+author: "Diego Correa & Lisa Szydziak"
 date: "December 02, 2021"
 always_allow_html: yes
 output:
@@ -51,9 +51,25 @@ library(rattle)
 
 ## Background
 
-### Data Dictionary
-
 ### Problem Statement
+
+This is role playing.  I am your new boss.  I am in charge of production at ABC Beverage and you are a team of data scientists reporting to me.  My leadership has told me that new regulations are requiring us to understand our manufacturing process, the predictive factors and be able to report to them our predictive model of PH.
+
+Please use the historical data set I am providing.  Build and report the factors in BOTH a technical and non-technical report.  I like to use Word and Excel.  Please provide your non-technical report in a  business friendly readable document and your predictions in an Excel readable format.  The technical report should show clearly the models you tested and how you selected your final approach.
+
+Please submit both Rpubs links and .rmd files or other readable formats for technical and non-technical reports.  Also submit the excel file showing the prediction of your models for pH.
+
+
+### Overview
+
+To accomplish the goal of the assignment, these are the steps we will take.
+
+1. Load
+2. Transform
+3. Explore
+4. Model
+5. Evaluate
+5. Predict
 
 
 ## Dataset
@@ -73,9 +89,7 @@ summary(df)%>% kable() %>% kable_styling(bootstrap_options = c("striped", "hover
 ## Pre-Processing
 
 
-
-
-Before performing the imputation, we need to change the categorical variable into a factor and clean up whitespaces from column names.
+Before performing the imputation, we need to change the categorical variable into a factor and clean up white spaces from column names.
 
 ```{r}
 # transforming the Brand Code variable into a factor for imputation
@@ -225,6 +239,17 @@ corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgra
 
 ### Overview
 
+We will first split the training and test data into a 75/25 split.  We will then create a dummy variable for the factor variable, **Brand Code**, in order to utilize all models.  Next, the independent and dependent will be identified as X and y, respectively.
+
+Once this is done we can, we will perform 2 models of each regression family type:
+
+1. Linear
+2. Non Linear
+3. Tree and Rules
+
+We will take a look at the variable importance of each model and capture the performance on the hold out dataset.
+
+Lastly, we will take the model with the highest **Rsqaured** as our best model and perform a prediction on the evaluation dataset.
 
 ### Splitting Data: Train/Test
 
@@ -243,7 +268,6 @@ y_test <- test[,'PH']
 X_train <- train[, !(colnames(train) == 'PH')]
 X_test <- test[, !(colnames(test) == 'PH')]
 ```
-
 
 
 ### Linear Regression 
@@ -291,7 +315,6 @@ lmPredPerf['Family'] <- 'Linear'
 # saving model prediction performance
 modelPredPerf <- data.frame(rbind(lm = lmPredPerf))
 ```
-
 
 
 #### Elastic Net
@@ -454,7 +477,6 @@ varimp$importance %>%
 ##### Prediction Performance
 
 
-
 ```{r}
 rfPred <- predict(rfmodel, newdata = X_test)
 rfPredPerf <- postResample(pred = rfPred, obs = y_test)
@@ -497,9 +519,9 @@ modelPredPerf <- rbind(modelPredPerf,cubist = cubistPredPerf)
 
 ### Evaluation
 
-Comparing the *Rqaured*, *RSME*, and *MAE* metric of each model's prediction on the hold out data.  We will use the the model with the highest *Rsquared* value as this will explains the most about the variance of the predicted value.  
+Comparing the **Rqaured**, **RSME**, and **MAE** metric of each model's prediction on the hold out data.  We will use the the model with the highest **Rsquared** value as this will explains the most about the variance of the predicted value.  
 
-Here, we see that the *Trees and Rules* models outperforms the *Non Linear* and *Linear* regression models.
+Here, we see that the **Trees and Rules** models outperforms the **Non Linear** and **Linear** regression models.
 
 ```{r}
 modelPredPerf %>%
@@ -507,7 +529,7 @@ modelPredPerf %>%
          Rsquared = round(as.numeric(Rsquared),3),
          MAE = round(as.numeric(MAE),3),) %>%
   arrange(desc(Rsquared)) %>%
-  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="250px")
 ```
 
 
@@ -515,7 +537,7 @@ modelPredPerf %>%
 
 ## Conclusion
 
-
+Each model generated indicates that the most important variable used is the **MnfFlow** in predicting the **PH** value.  In the majority of models, this variable was followed by **UsageCont**, **BowlSetpoint**, and **FillerLevel**.  However, this is not the case in the **Random Forest** model, which is our best performing model.
 
 
 
@@ -545,7 +567,7 @@ eval_df <- eval_df[,!(colnames(eval_df) == remove)]
 ```
 
 
-We can see that the dataset has missing values.  The generated *Random Forest* model needs values in each entry to make a prediction on the entry.  Thus, imputation is needed prior to making predictions.  We will use the same technique as before.
+We can see that the dataset has missing values.  The generated **Random Forest** model needs values in each entry to make a prediction on the entry.  Thus, imputation is needed prior to making predictions.  We will use the same technique as before.
 
 
 ```{r message=FALSE, warning=FALSE}
@@ -554,15 +576,15 @@ init <- mice(eval_df, maxit = 0)
 predM <- init$predictorMatrix
 set.seed(123)
 imputed <- mice(eval_df, method = 'rf', predictorMatrix = predM, m=1, silent = TRUE)
-eval_df <- complete(imputed, silent = TRUE)
+eval_df2 <- complete(imputed, silent = TRUE)
 ```
 
 
-Next, we need to drop the *PH* in the evaluation dataset to transform it into a matrix model that includes dummy variables for the factor data type.
+Next, we need to drop the **PH** in the evaluation dataset to transform it into a matrix model that includes dummy variables for the factor data type.
 
 ```{r}
 # remove PH variable
-eval_df2 <- eval_df[,!(colnames(eval_df) == 'PH')]
+eval_df2 <- eval_df2[,!(colnames(eval_df2) == 'PH')]
 
 # create model matrix
 eval_modelmatrix <- model.matrix( ~ .-1, eval_df2)
