@@ -225,6 +225,17 @@ vars %>%
 DataExplorer::plot_histogram(df)
 ```
 
+From the histograms above, we can classify the variables into the distribution categories:
+* Symmetric: CarbPressure, CarbPress, CarbTamp, FillOunces, PCVolume, PressureVacuum
+* Left-skewed: FillerLevel, Fillerspeed, MFR, Usagecont
+* Right-skewed: PSC, PSCCO2, PSCFill, OxygenFiller, Temperaturet
+* Mulit-modal: CarbVolume, FillPressure, HydPressure2, HydPressure3, HydPRessure4, MnfFlow, AirPressure, AlchRel, Balling, BallingLvl, BowlSetpoint, Carbflow, CarbRel, Density, PressureSetpoint
+
+Unfortunately, we were not provided a data dictionary or access to an advisor. 
+We noted that HydPressure2 and HydPressure3 have a large proportion of 0 values. Is this feasible or could these be missing values?
+Could the multimodal distributed values represent discrete machine settings and maybe better represented as a categorical or ordinal variable?
+Without a data dictionary or expert advice, we will assume the variables are continuous variables.
+
 ### Correlation Plot: Multicollinearity Check
 
 
@@ -285,12 +296,10 @@ lmFit
 
 ##### Residual Analysis
 
+The below graphs show that the residuals are not evenly distributed for the predictions in the first quartile.
+
 ```{r warning=FALSE}
-res <- resid(lmFit)
-predVal <- predict(lmFit)
-plot(y_train, res)
-abline(0,0)
-plot(y_train,predVal)
+plot(lmFit$finalModel)
 ```
 
 
@@ -519,7 +528,7 @@ modelPredPerf <- rbind(modelPredPerf,cubist = cubistPredPerf)
 
 ### Evaluation
 
-Comparing the **Rqaured**, **RSME**, and **MAE** metric of each model's prediction on the hold out data.  We will use the the model with the highest **Rsquared** value as this will explains the most about the variance of the predicted value.  
+Comparing the **Rsquared**, **RSME**, and **MAE** metric of each model's prediction on the hold out data.  We will use the the model with the highest **Rsquared** value as this will explains the most about the variance of the predicted value.  
 
 Here, we see that the **Trees and Rules** models outperforms the **Non Linear** and **Linear** regression models.
 
@@ -539,11 +548,13 @@ modelPredPerf %>%
 
 Each model generated indicates that the most important variable used is the **MnfFlow** in predicting the **PH** value.  In the majority of models, this variable was followed by **UsageCont**, **BowlSetpoint**, and **FillerLevel**.  However, this is not the case in the **Random Forest** model, which is our best performing model.
 
+We recommend the top performing model, the random forest with top 5 predictor variables:  **MnfFlow**, **BrandCodeC**,  **OxygenFiller**, **AlchRel**, **AirPressurer**.
+
 
 
 ## Prediction
 
-Lastly, we will use our best performing model, Random Forest, on the evaluation dataset.  In order to use the mdoel, we need to perform the transformations that we used on our dataset.
+Lastly, we will use our best performing model, Random Forest, on the evaluation dataset.  In order to use the model, we need to perform the transformations that we used on our dataset.
 
 ```{r}
 # reading the evaluation dataset
@@ -590,7 +601,7 @@ eval_df2 <- eval_df2[,!(colnames(eval_df2) == 'PH')]
 eval_modelmatrix <- model.matrix( ~ .-1, eval_df2)
 ```
 
-Now the *Random Forest* model is ready to be used on the evaluation dataset.
+Now the **Random Forest** model is ready to be used on the evaluation dataset.
 
 ```{r}
 # Predicting on evaluation dataset
@@ -604,5 +615,13 @@ eval_df$PH <- rfPred
 Finally, we can write the dataset set with our predictions into an excel spreadsheet.
 
 ```{r}
+eval_df %>%
+  head %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="250px")
+
 write_xlsx(eval_df, 'StudentEvaluation2.xlsx')
 ```
+
+
+
+
