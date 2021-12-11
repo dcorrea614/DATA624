@@ -55,7 +55,7 @@ library(rattle)
 
 This is role playing.  I am your new boss.  I am in charge of production at ABC Beverage and you are a team of data scientists reporting to me.  My leadership has told me that new regulations are requiring us to understand our manufacturing process, the predictive factors and be able to report to them our predictive model of PH.
 
-Please use the historical data set I am providing.  Build and report the factors in BOTH a technical and non-technical report.  I like to use Word and Excel.  Please provide your non-technical report in a  business friendly readable document and your predictions in an Excel readable format.  The technical report should show clearly the models you tested and how you selected your final approach.
+Please use the historical data set I am providing.  Build and report the factors in **BOTH** a technical and non-technical report.  I like to use Word and Excel.  Please provide your non-technical report in a  business friendly readable document and your predictions in an Excel readable format.  The technical report should show clearly the models you tested and how you selected your final approach.
 
 Please submit both Rpubs links and .rmd files or other readable formats for technical and non-technical reports.  Also submit the excel file showing the prediction of your models for pH.
 
@@ -148,7 +148,7 @@ ggplot(dataset_missing_counts, aes(x = NA_Count, y = reorder(Feature, NA_Count))
 
 ### Removing Rows with Missing Brand Code
 
-To avoid risk of imputing the incorrect Brand Code, we remove the *NA* rows, a total 120 rows.
+To avoid risk of imputing the incorrect Brand Code, we remove the **NA** rows, a total 120 rows.
 
 ```{r}
 #remove missing brand => df3
@@ -226,15 +226,17 @@ DataExplorer::plot_histogram(df)
 ```
 
 From the histograms above, we can classify the variables into the distribution categories:
-* Symmetric: CarbPressure, CarbPress, CarbTamp, FillOunces, PCVolume, PressureVacuum
-* Left-skewed: FillerLevel, Fillerspeed, MFR, Usagecont
-* Right-skewed: PSC, PSCCO2, PSCFill, OxygenFiller, Temperaturet
-* Mulit-modal: CarbVolume, FillPressure, HydPressure2, HydPressure3, HydPRessure4, MnfFlow, AirPressure, AlchRel, Balling, BallingLvl, BowlSetpoint, Carbflow, CarbRel, Density, PressureSetpoint
+
+* **Symmetric**: CarbPressure, CarbPress, CarbTamp, FillOunces, PCVolume, PressureVacuum
+* **Left-skewed**: FillerLevel, Fillerspeed, MFR, Usagecont
+* **Right-skewed**: PSC, PSCCO2, PSCFill, OxygenFiller, Temperaturet
+* **Multi-modal**: CarbVolume, FillPressure, HydPressure2, HydPressure3, HydPRessure4, MnfFlow, AirPressure, AlchRel, Balling, BallingLvl, BowlSetpoint, Carbflow, CarbRel, Density, PressureSetpoint
 
 Unfortunately, we were not provided a data dictionary or access to an advisor. 
 We noted that HydPressure2 and HydPressure3 have a large proportion of 0 values. Is this feasible or could these be missing values?
 Could the multimodal distributed values represent discrete machine settings and maybe better represented as a categorical or ordinal variable?
 Without a data dictionary or expert advice, we will assume the variables are continuous variables.
+
 
 ### Correlation Plot: Multicollinearity Check
 
@@ -252,15 +254,11 @@ corrMatrix %>% corrplot(., method = "color", outline = T, addgrid.col = "darkgra
 
 We will first split the training and test data into a 75/25 split.  We will then create a dummy variable for the factor variable, **Brand Code**, in order to utilize all models.  Next, the independent and dependent will be identified as X and y, respectively.
 
-Once this is done we can, we will perform 2 models of each regression family type:
-
-1. Linear
-2. Non Linear
-3. Tree and Rules
+Once this is done we can, we will perform 2 models of each regression family type: **Linear**, **Non Linear**, **Tree and Rules**.
 
 We will take a look at the variable importance of each model and capture the performance on the hold out dataset.
 
-Lastly, we will take the model with the highest **Rsqaured** as our best model and perform a prediction on the evaluation dataset.
+Lastly, we will take the model with the highest **Rsquared** as our best model and perform a prediction on the evaluation dataset.
 
 ### Splitting Data: Train/Test
 
@@ -296,11 +294,12 @@ lmFit
 
 ##### Residual Analysis
 
-The below graphs show that the residuals are not evenly distributed for the predictions in the first quartile.
 
 ```{r warning=FALSE}
 plot(lmFit$finalModel)
 ```
+
+The diagnostic plots reveal some concern over the Residuals vs Fitted. This plot should exhibit no patterns. The QQ plot should follow a straight line and there is a departure on the left side. The scale-location plot line is not straight and drifts downward. The Leverage plot does exhibit concerning points as well.
 
 
 ##### Variable Importance
@@ -455,9 +454,6 @@ nnetPredPerf['Family'] <- 'NonLinear'
 modelPredPerf <- rbind(modelPredPerf,neural_net = nnetPredPerf)
 ```
 
-The neural network RMSE =0.11452281,
-Rsquare= 0.54636835, 
-MAE= 0.08871147 on test data.
 
 ### Trees and Rules
 
@@ -524,6 +520,16 @@ cubistPredPerf['Family'] <- 'TreesAndRules'
 
 # saving model prediction performance
 modelPredPerf <- rbind(modelPredPerf,cubist = cubistPredPerf)
+```
+
+##### Variable Importance
+
+```{r}
+varimp <- varImp(cubist_Model)
+
+varimp$importance %>%
+  arrange(desc(Overall)) %>%
+  kable() %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) %>% scroll_box(width="100%",height="400px")
 ```
 
 ### Evaluation
@@ -621,7 +627,3 @@ eval_df %>%
 
 write_xlsx(eval_df, 'StudentEvaluation2.xlsx')
 ```
-
-
-
-
